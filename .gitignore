@@ -1,0 +1,17 @@
+# dependencias y build
+node_modules
+dist
+*.tsbuildinfo
+
+# variables de entorno (claves de Supabase, etc.) — nunca al repo
+.env
+.env.*
+!.env.example
+
+# sistema / editores
+.DS_Store
+Thumbs.db
+*.log
+.vscode/*
+!.vscode/extensions.json
+.idea
