@@ -54,8 +54,9 @@ import {
   compileFormula, compileFormulaInterval, formulaVariables,
   type CompiledFormula, type IntervalFormula,
 } from './formula'
+import { checkSelection, skillContribution, skillVariables } from './skills'
 import type {
-  BuildResult, Item, SolveRequest, SolveResponse, SolveStats,
+  BuildResult, Item, SkillSelection, SolveRequest, SolveResponse, SolveStats,
 } from './types'
 
 /** Modo de acumulacion de una estadistica. */
@@ -220,9 +221,17 @@ function buildLayout(req: SolveRequest): Layout {
   const extraKeys = Object.keys(profile.base).filter((k) => !statIndex.has(k))
   extraKeys.forEach((k, i) => varIndex.set(`base_${k}`, 2 * S + D + i))
 
-  const vars = new Float64Array(2 * S + D + extraKeys.length)
+  // Rango de cada habilidad (`skill_<id>`): constantes durante la busqueda.
+  // Se registran TODAS las de la plantilla, elegidas o no, para que una formula
+  // que menciona una habilidad sin elegir compile y valga 0.
+  const skillVars = skillVariables(template, req.skills)
+  const skillBase = 2 * S + D + extraKeys.length
+  skillVars.forEach(([name], j) => varIndex.set(name, skillBase + j))
+
+  const vars = new Float64Array(skillBase + skillVars.length)
   for (let i = 0; i < S; i++) vars[S + i] = profile.base[statIds[i]] ?? neutral[i]
   extraKeys.forEach((k, i) => { vars[2 * S + D + i] = profile.base[k] ?? 0 })
+  skillVars.forEach(([, rank], j) => { vars[skillBase + j] = rank })
 
   const derivedFns: CompiledFormula[] = derived.map((d) => compileFormula(d.formula, varIndex))
   const objectiveFn = compileFormula(objective.formula, varIndex)
@@ -297,8 +306,9 @@ export function explainBuild(
   profileId: string,
   objectiveId: string,
   finalStats: Record<string, number>,
+  skills?: SkillSelection,
 ): Map<string, number> {
-  const L = buildLayout({ template, items: [], profileId, objectiveId, constraints: [], topN: 1 })
+  const L = buildLayout({ template, items: [], profileId, objectiveId, constraints: [], topN: 1, skills })
   const totals = new Float64Array(L.S)
   for (let i = 0; i < L.S; i++) {
     const fin = finalStats[L.statIds[i]]
@@ -333,7 +343,53 @@ function mulRange(a: number, b: number, c: number, d: number): [number, number] 
   return [Math.min(...p), Math.max(...p)]
 }
 
+/** Ranura y pieza sinteticas que llevan los efectos de las habilidades. */
+export const SKILL_SLOT = '__skills'
+const SKILL_ITEM = '__skills'
+
+/**
+ * Prepara una peticion con habilidades: los efectos de los nodos elegidos se
+ * convierten en UNA pieza fija, en una ranura extra que solo la admite a ella.
+ *
+ * Es deliberado no tocar el branch and bound: una ranura con un unico candidato
+ * entra en todas las cotas, la dominancia y los requisitos contra la build final
+ * exactamente igual que cualquier pieza, asi que las garantias del motor
+ * (optimo demostrado, contraste con fuerza bruta) siguen valiendo sin cambios.
+ * Luego `strip` quita esa ranura del resultado.
+ */
+function withSkills(req: SolveRequest): { req: SolveRequest; strip: <T extends { itemIds: string[] }>(b: T) => T; active: boolean } {
+  const none = { req, strip: <T,>(b: T) => b, active: false }
+  if (!req.skills || Object.keys(req.skills).length === 0) return none
+  const problemas = checkSelection(req.template, req.skills)
+  if (problemas.length) throw new Error(`Seleccion de habilidades invalida: ${problemas[0].message}`)
+  const stats = skillContribution(req.template, req.skills)
+  if (Object.keys(stats).length === 0) return none
+  const template = { ...req.template, slots: [...req.template.slots, { id: SKILL_SLOT, name: 'Habilidades' }] }
+  const items: Item[] = [...req.items, { id: SKILL_ITEM, slot: SKILL_SLOT, setId: null, name: 'Habilidades', stats }]
+  const k = req.template.slots.length
+  return {
+    req: { ...req, template, items },
+    strip: (b) => ({ ...b, itemIds: b.itemIds.filter((_, i) => i !== k) }),
+    active: true,
+  }
+}
+
 export function solve(req: SolveRequest, hooks: SolveHooks = {}): SolveResponse {
+  const w = withSkills(req)
+  if (!w.active) return solveCore(w.req, hooks)
+  const sinRanura = <T extends { slotId: string }>(l: T[]) => l.filter((c) => c.slotId !== SKILL_SLOT)
+  const r = solveCore(w.req, {
+    ...hooks,
+    onProgress: hooks.onProgress && ((p) => hooks.onProgress!({ ...p, builds: p.builds.map(w.strip) })),
+    onSetup: hooks.onSetup && ((s) => hooks.onSetup!({ ...s, candidatesPerSlot: sinRanura(s.candidatesPerSlot) })),
+  })
+  return {
+    builds: r.builds.map(w.strip),
+    stats: { ...r.stats, candidatesPerSlot: sinRanura(r.stats.candidatesPerSlot) },
+  }
+}
+
+function solveCore(req: SolveRequest, hooks: SolveHooks = {}): SolveResponse {
   const t0 = Date.now()
   // Sin limite salvo que quien llama pida uno. `t0 + Infinity` es Infinity, y
   // `now > Infinity` nunca es cierto, asi que la comprobacion del bucle sigue
@@ -1389,6 +1445,11 @@ export function solve(req: SolveRequest, hooks: SolveHooks = {}): SolveResponse 
  * fusion de ejes no pueda esconderse en las dos implementaciones a la vez.
  */
 export function solveBruteForceTop(req: SolveRequest): { score: number; itemIds: string[] }[] {
+  const w = withSkills(req)
+  return bruteForceCore(w.req).map(w.strip)
+}
+
+function bruteForceCore(req: SolveRequest): { score: number; itemIds: string[] }[] {
   const { template, items, constraints, profileId } = req
   const topN = Math.max(1, Math.floor(req.topN || 1))
   const L = buildLayout(req)

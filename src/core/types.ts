@@ -31,6 +31,11 @@ export interface StatDef {
    * (1,69), no como porcentaje. Se escribe `dano * more`, no `dano * (1 + more/100)`.
    */
   aggregate?: 'sum' | 'multiply'
+  /**
+   * PRESENTACION: grupo en la hoja de personaje ("Atributos", "Ofensiva",
+   * "Defensa"...). El motor lo ignora.
+   */
+  group?: string
 }
 
 /** Una ranura de equipamiento (Flor, Casco, Accesorio 1...). */
@@ -63,6 +68,25 @@ export interface DerivedDef {
   id: string
   name: string
   formula: string
+  /** PRESENTACION: grupo en la hoja de personaje. Sin grupo va a "Calculados". */
+  group?: string
+  /** PRESENTACION: unidad para mostrar ("%", "s"...). */
+  unit?: string
+  /**
+   * Curva por tramos: "este atributo da tanto de esto". Se dibuja con puntos
+   * (valor del atributo -> resultado) y entre puntos se interpola en linea
+   * recta; fuera del rango se queda en el extremo (los topes blandos de los
+   * Souls). El editor genera `formula` a partir de la curva, asi que el motor
+   * no necesita nada especial: es un valor calculado mas.
+   */
+  curve?: CurveDef
+}
+
+export interface CurveDef {
+  /** Clave del perfil que entra a la curva (ej: "vigor"). */
+  input: string
+  /** Pares [valor del atributo, resultado], ordenados por el primero. */
+  points: [number, number][]
 }
 
 /**
@@ -98,6 +122,15 @@ export interface BaseProfile {
   assetKey?: string
   /** Se exponen a las formulas con el prefijo `base_` (ej: base_atk). */
   base: Record<StatId, number>
+  /**
+   * PRESENTACION: claves de `base` que el jugador sube de nivel (Vigor,
+   * Fuerza...). La hoja de personaje deja simularlas con + y −, como el menu
+   * de subir de nivel de Dark Souls. Si no se indica, se ofrecen las claves que
+   * coinciden con una estadistica declarada.
+   */
+  levelable?: string[]
+  /** PRESENTACION: nombre visible de las claves de `base` que no son estadisticas. */
+  labels?: Record<string, string>
 }
 
 /**
@@ -117,7 +150,68 @@ export interface SelfTest {
   expectScore?: number
   expectStats?: Record<StatId, number>
   tolerance?: number
+  /** Habilidades elegidas durante la prueba (opcional). */
+  skills?: SkillSelection
 }
+
+// ------------------------------------------------------- arbol de habilidades
+
+/**
+ * Un nodo de un arbol de habilidades. El autor del juego decide la forma: no
+ * hay jerarquia impuesta, solo las reglas que el propio nodo declara.
+ */
+export interface SkillNode {
+  /**
+   * Identificador unico entre TODOS los arboles del juego. Se usa en las
+   * formulas como `skill_<id>` (vale el rango elegido, 0 si no se eligio), asi
+   * que solo admite letras sin tilde, numeros y guion bajo.
+   */
+  id: string
+  name: string
+  description?: string
+  /** Puntos que cuesta cada rango. Por defecto 1. 0 = nodo gratuito. */
+  cost?: number
+  /** Rangos maximos. Por defecto 1. */
+  maxRank?: number
+  /** Hace falta tener TODOS estos nodos (con al menos un rango). */
+  requires?: string[]
+  /** Hace falta tener AL MENOS UNO de estos nodos. */
+  requiresAny?: string[]
+  /** Puntos que hay que haber gastado en el mismo arbol (en otros nodos) antes de tomarlo. */
+  requiresPoints?: number
+  /**
+   * Eleccion excluyente: de todos los nodos con el mismo `choiceGroup` (en
+   * cualquier arbol) solo uno puede tener rangos. Es el "elige uno de dos" de
+   * World of Warcraft, o elegir una especializacion o una clase de heroe.
+   */
+  choiceGroup?: string
+  /**
+   * Efecto POR RANGO sobre las estadisticas declaradas, en el mismo formato que
+   * `Item.stats`. Respeta el modo de cada estadistica: suma o multiplica.
+   */
+  effects?: Record<StatId, number>
+  /** PRESENTACION: posicion en el editor visual. El motor la ignora. */
+  x?: number
+  y?: number
+}
+
+export interface SkillTreeDef {
+  id: string
+  name: string
+  description?: string
+  /** Puntos totales disponibles en este arbol. Sin valor = sin limite. */
+  budget?: number
+  /**
+   * Si es true, un requisito solo cuenta cuando esa habilidad esta COMPLETA
+   * (con todos sus rangos), como en World of Warcraft. Por defecto basta con
+   * un rango.
+   */
+  requireFullRanks?: boolean
+  nodes: SkillNode[]
+}
+
+/** Rango elegido por nodo: { golpeBrutal: 2, furia: 1 }. Lo que no aparece vale 0. */
+export type SkillSelection = Record<string, number>
 
 /** Plantilla completa de un juego. Es el unico input especifico del juego. */
 export interface GameTemplate {
@@ -151,6 +245,10 @@ export interface GameTemplate {
   requirementsFrom?: 'base' | 'final'
   /** Casos que la plataforma ejecuta para verificar la plantilla. */
   selfTests?: SelfTest[]
+  /** Arboles de habilidades del juego (opcional). */
+  skillTrees?: SkillTreeDef[]
+  /** Niveles del personaje y como crecen sus valores base (opcional). */
+  leveling?: LevelingDef
   notes?: string
   /**
    * PRESENTACION. Nada de esto entra en el calculo: el motor ignora estos tres
@@ -218,6 +316,8 @@ export interface SolveRequest {
   objectiveId: string
   constraints: Constraint[]
   topN: number
+  /** Habilidades elegidas. Sus efectos se suman como una pieza fija mas. */
+  skills?: SkillSelection
 }
 
 export interface BuildResult {
@@ -289,4 +389,41 @@ export interface SolveStats {
 export interface SolveResponse {
   builds: BuildResult[]
   stats: SolveStats
+}
+
+// ------------------------------------------------------------------ niveles
+
+/**
+ * Niveles del personaje y curvas de crecimiento (TEC-12, SIM-02..04).
+ *
+ * El nivel actual vive en el perfil, en `base[levelKey]`. Cada entrada de
+ * `growth` dice cuanto SUBE una clave de `base` al pasar al nivel `nivel`
+ * (de nivel-1 a nivel). Puede ser un numero ("2") o una formula con la
+ * variable `nivel` y los valores base del perfil (`base_crecFuerza`), lo que
+ * permite curvas distintas por clase o crecimiento que acelera con el nivel.
+ *
+ * Proyectar del nivel actual N al nivel L suma el crecimiento de N+1 a L.
+ */
+export interface LevelingDef {
+  /** Clave de `base` que guarda el nivel actual. Por defecto "nivel". */
+  levelKey?: string
+  min: number
+  max: number
+  /**
+   * Como se sube de nivel:
+   *  - 'growth' (por defecto): los atributos crecen solos segun `growth`.
+   *  - 'points': cada nivel da puntos que el jugador reparte entre los
+   *    atributos de `points.attributes` (Souls, Elden Ring, Diablo...). Los
+   *    atributos a su vez mueven otras cifras mediante formulas o curvas.
+   *    `growth` puede seguir existiendo para lo que sube solo.
+   */
+  mode?: 'growth' | 'points'
+  points?: {
+    attributes: string[]
+    /** Puntos por nivel. Por defecto 1. */
+    perLevel?: number
+    /** Tope de cada atributo (99 en los Souls). Sin tope si falta. */
+    maxValue?: number
+  }
+  growth: Record<string, string>
 }

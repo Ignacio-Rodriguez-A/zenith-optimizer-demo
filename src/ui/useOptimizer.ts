@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BuildResult, SolveRequest, SolveResponse, SolveStats } from '../core/types'
 import type { Setup, WorkerIn, WorkerOut } from '../worker/optimizer.worker'
+import { reportError } from './errors'
 
 export interface Progress {
   evaluated: number
@@ -69,12 +70,14 @@ export function useOptimizer() {
         setPhase('done')
         kill()
       } else {
+        reportError(new Error(msg.message), 'optimizador (worker)')
         setError(msg.message)
         setPhase('error')
         kill()
       }
     }
     worker.onerror = (e) => {
+      reportError(new Error(e.message || 'Error en el worker'), 'optimizador (worker)')
       setError(e.message || 'Error en el worker')
       setPhase('error')
       kill()

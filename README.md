@@ -50,7 +50,7 @@ export **GOOD** de Genshin Optimizer sobre la caja de la izquierda.
 Comprobaciones sin interfaz:
 
 ```bash
-npm test               # alias de regresion (lo que corre el CI en GitHub Actions)
+npm test               # regresion, habilidades, niveles, sincronizacion y reglas de Supabase (lo que corre el CI)
 npm run typecheck      # TypeScript estricto, sin emitir
 npm run regresion      # casos que antes fallaban + fuzz de miles de instancias contra fuerza bruta
 npm run bench          # correctitud contra fuerza bruta + rendimiento
@@ -868,6 +868,194 @@ React Flow pesa más que todo el motor junto, así que se carga **bajo demanda**
 el catálogo de juegos —la primera pantalla— no paga por una librería que quizá
 no llegue a usarse. El paquete principal se queda en 120 KB comprimidos y el
 diagrama son otros 63 KB que solo bajan al abrirlo.
+
+---
+
+## Árbol de habilidades
+
+Cada juego puede declarar uno o varios árboles (`skillTrees` en la plantilla) con la
+forma que quiera su autor: no hay jerarquía impuesta, solo las reglas que cada nodo
+declara.
+
+| Campo del nodo | Qué hace |
+|---|---|
+| `cost`, `maxRank` | Puntos por rango y rangos máximos (por defecto 1 y 1) |
+| `requires` | Hace falta tener **todos** estos nodos |
+| `requiresAny` | Hace falta tener **al menos uno** de estos nodos |
+| `requiresPoints` | Puntos gastados en el mismo árbol antes de poder tomarlo |
+| `effects` | Efecto **por rango** sobre las estadísticas declaradas |
+
+Y en el árbol, `budget` limita los puntos totales.
+
+**Las estadísticas funcionan con los datos del juego.** Los efectos de los nodos elegidos
+se suman exactamente como una pieza de equipo más: respetan si la estadística suma o
+multiplica (dos rangos de +10% "more" dan +21%), cuentan para los requisitos contra la
+build final y entran en derivados y objetivos sin escribir nada especial. Además, el rango
+de cada nodo está disponible en las fórmulas como `skill_<id>`, así que un nodo puede
+**activar una mecánica**: `danoArma * if(skill_sangreFria > 0 && cargaPct < 50, 1.2, 1)`.
+
+**El motor no cambió.** Los efectos entran como una ranura extra con una sola pieza fija,
+así que el branch and bound, la dominancia y las cotas siguen siendo exactos.
+`npm run habilidades` lo comprueba: reglas de selección, efectos, validación de plantillas
+mal armadas (ciclos, estadísticas inexistentes, umbrales imposibles) y 400 instancias
+aleatorias contra fuerza bruta.
+
+**Se crean de forma visual, sin JSON.** En *Mis juegos → editar → Habilidades* hay un
+editor con lienzo (React Flow): **+ Habilidad** agrega un nodo, se arrastra para moverlo,
+una flecha de A a B significa "B requiere A" (pulsándola se elige si es obligatoria o una
+alternativa), y la ficha lateral pide solo datos del juego: nombre, rangos, puntos por rango,
+puntos previos y qué suma a cada estadística. **Probar como jugador** deja usar el árbol
+tal como lo verá el jugador. El editor impide flechas que crearían un ciclo, no deja borrar
+una habilidad que una fórmula usa y genera solo el nombre interno de cada nodo. Para
+compartir el árbol basta con **exportar** el juego: va dentro del mismo `.zenith.json`.
+
+El ejemplo *Souls (simplificado)* trae un árbol de 7 nodos para probarlo desde el
+Optimizador → **Abrir el árbol de habilidades**.
+
+---
+
+## World of Warcraft: Midnight — Paladín
+
+Tres juegos de ejemplo, uno por especialización (**Reprensión**, **Protección**, **Sagrado**),
+generados desde datos del juego para la build **12.1.0.69933** (parche 12.1, Temporada 2):
+
+- **Árboles de talentos completos**: árbol de clase (34 puntos, umbrales de 8 y 23), árbol de
+  especialización con su talento ápice (34 puntos, umbrales de 8 y 20) y las dos clases de héroe
+  de cada especialización (13 puntos; solo se puede usar una). Nodos, posiciones, rangos,
+  elecciones ("elige uno de dos") y nodos gratis salen de los datos de talentos de Raidbots. Rige
+  la regla de WoW: un nodo se desbloquea con **uno** de los nodos que llegan a él, y completo.
+- **Objetos reales**: botín de la banda de la Temporada 2 y el conjunto de catalizador, con sus
+  estadísticas calculadas a nivel de objeto 311 con la fórmula de SimulationCraft.
+- **Conversión de índices** a nivel 90 (crítico 46, celeridad 44, maestría 46, versatilidad 54) y
+  la **curva oficial de rendimientos decrecientes**.
+- **Aproximación declarada**: el objetivo de daño o sanación multiplica las estadísticas; no
+  simula la rotación. Efectos de abalorios, bonificaciones de conjunto, engarces y encantamientos
+  no se modelan. Todo está explicado en las *Notas de la plantilla*.
+
+Para regenerarlos con datos más nuevos: `scripts/datos/generar-paladin-wow.py`.
+
+## Hoja de personaje
+
+La pestaña **Personaje** junta tres ideas:
+
+- **World of Warcraft**: el personaje al centro y sus ranuras alrededor. Pulsando una ranura se
+  elige la pieza del inventario. A la derecha, las estadísticas agrupadas como las define la
+  plantilla (campo `group` de cada estadística y de cada valor calculado).
+- **Genshin Impact**: retrato grande del personaje; se puede subir una imagen propia.
+- **Dark Souls 3**: *Subir de nivel*. Los atributos del perfil (`levelable`) se suben y bajan con
+  + y −, y cada cifra muestra `actual ⇒ nueva`, en azul si mejora y en rojo si empeora, antes de
+  confirmar. El ejemplo *Souls* lo trae con Fuerza, Destreza e Inteligencia.
+
+Todas las cifras salen del motor (las mismas funciones que usa el optimizador). Desde cada build
+del optimizador, **ver en el personaje** la pone en la hoja.
+
+---
+
+## Proyección por nivel (TEC-12, SIM-02, SIM-03, SIM-04)
+
+Un juego puede declarar **niveles** y cuánto crece cada atributo por nivel:
+
+```json
+"leveling": {
+  "levelKey": "nivel", "min": 1, "max": 60,
+  "growth": { "fuerza": "base_crecFuerza", "vida": "base_crecVida + floor(nivel / 10) * 4" }
+}
+```
+
+Cada curva dice cuánto **sube** ese valor al llegar al nivel `nivel`. Puede ser un número fijo o
+una fórmula con `nivel` y los valores del perfil (`base_crecFuerza`), así cada clase crece distinto
+y las curvas pueden acelerar. El nivel actual vive en el perfil (`base.nivel`). Proyectar del nivel
+N al L suma las curvas de N+1 a L.
+
+- **Motor** (`src/core/leveling.ts`, puro, sin UI ni red): `proyectarEstadisticas(personaje,
+  nivelObjetivo)` con el nombre del Jira, más `projectProfile`, `currentLevel`, `futureLevels` y
+  `checkLeveling` (conectado al validador de plantillas). Devuelve los mensajes de los criterios de
+  aceptación tal cual ("Elige un nivel superior al actual", "El nivel elegido debe ser mayor al
+  actual", "No tienes estadísticas base para simular. Sube de nivel primero.", "Simulación futura no
+  disponible").
+- **Pruebas** (`npm run niveles`, incluidas en `npm test`): el ejemplo del Jira (Guerrero nivel 10,
+  Fuerza 20, +1,6 por nivel → nivel 15 = 28, +8), los mensajes de error, curvas que dependen del
+  nivel, que proyectar 1→6→10 dé lo mismo que 1→10, la validación y que en el ejemplo publicado la
+  mejor arma cambie al subir de nivel.
+- **Editor** (*Mis juegos → editar → Niveles*): activar niveles, mínimo y máximo, nivel actual de
+  cada personaje y qué sube al subir: *igual para todos* (un número), *distinto por clase* (un
+  número por perfil) o *fórmula* (avanzado). Vista previa a +1, +5 y +10 niveles. Sin JSON.
+- **Hoja de personaje → Evolución por nivel** (`?vista=evolucion`):
+  - *Proyectar* (SIM-02): elige un nivel futuro; el actual no se puede elegir y uno menor muestra
+    el error. Presente en blanco, futuro en naranjo, con `↑ +8` y el detalle "Fuerza: 20 → 28 (+8)"
+    al pasar el cursor. Debajo, los resultados del juego con el equipo puesto (daño, vida total…)
+    calculados por el motor, y las piezas que se desbloquean a ese nivel. **Subir al nivel N+1** /
+    **Subir hasta el nivel N** guarda el estado actual y cada nivel intermedio en el historial.
+  - *Historial* (SIM-03): elige un nivel anterior; pasado en azul. Si no hay registro para ese nivel,
+    "No hay registros de estadísticas para el nivel N"; sin historial, el mensaje del Jira.
+  - *Comparar los tres* (SIM-04): pasado, presente y futuro lado a lado con niveles independientes;
+    la diferencia siempre se mide contra la columna anterior.
+  - Orden por valor (de mayor a menor) o alfabético pulsando **Nombre** (SIM-01). Cada estadística
+    acepta una imagen propia (se guarda con las imágenes de los objetos); sin imagen, sus iniciales.
+- **Historial** (`src/store/levelHistory.ts`): un registro por nivel, por juego y perfil, en
+  `localStorage`. Con Supabase pasa a una tabla `historial_estadisticas`.
+- **Ejemplo**: *RPG clásico (con niveles)* (`scripts/datos/generar-rpg.py`): Guerrero, Mago y
+  Pícaro con curvas distintas y armas con requisitos que se alcanzan subiendo.
+
+### Juegos donde se reparten puntos (Souls, Elden Ring, Diablo)
+
+En esos juegos subir de nivel no hace crecer nada solo: da **un punto** que el jugador pone en un
+atributo, y ese atributo mueve otras cifras con **topes blandos** (en Dark Souls, el Vigor da mucha
+vida hasta 27, menos hasta 50 y casi nada después). Zenith lo modela con dos piezas:
+
+- **Niveles por puntos** (`leveling.mode: "points"`, `points: { attributes, perLevel, maxValue }`):
+  qué atributos reciben puntos, cuántos da cada nivel y el tope (99). El nivel avanza con los puntos.
+  `growth` sigue disponible para lo que sube solo.
+- **Curvas por tramos** (`derived[].curve: { input, points }`): "con 10 de Vigor, 580 de vida; con 27,
+  1000; con 50, 1400; con 99, 1650". Entre puntos se interpola en línea recta y fuera del rango queda
+  plano. El editor genera la fórmula (`300 + 31.1 * (clamp(base_vigor, 1, 10) - 1) + …`), así que para
+  el motor es un valor calculado más: entra en el optimizador, la hoja, el diagrama y las cotas por
+  intervalos sin código especial. El validador avisa si la fórmula deja de coincidir con la curva.
+
+En la app:
+
+- **Editor → Niveles**: elegir *Los atributos crecen solos* o *Cada nivel da puntos para repartir*,
+  marcar los atributos, editar los de cada personaje en una tabla y, en **Qué da cada atributo**,
+  dibujar las curvas con puntos (con gráfico). En *Fórmulas*, las curvas aparecen como solo lectura.
+- **Evolución por nivel → Proyectar**: al elegir un nivel aparece **Reparte tus puntos** (con − y + por
+  atributo) y la tabla muestra al instante qué cifras mueve cada punto. **Sugerir reparto** reparte
+  para el objetivo elegido (daño, supervivencia…) con el equipo puesto, cubriendo primero los
+  requisitos de esas piezas. Para subir hay que repartir todos los puntos.
+- **Subir de nivel** (panel tipo Dark Souls de la hoja): cada + es un nivel (*Nivel 80 ⇒ 83*), no se
+  puede bajar de lo que ya tienes y al confirmar queda en el historial.
+
+El reparto automático (`allocatePoints` en `leveling.ts`) cubre requisitos, avanza comparando pasos
+de un punto con saltos de hasta 15 (para umbrales: un efecto que aparece a los 4 puntos) y termina con
+búsqueda local moviendo puntos entre atributos. Es una heurística; las pruebas la comparan con fuerza
+bruta en 30 casos con topes blandos y coincide en todos.
+
+El ejemplo **Souls** ahora sube por puntos (Vigor, Fuerza, Destreza, Inteligencia; tope 99) y usa
+curvas para la vida y el escalado del arma.
+
+> El Jira usa naranjo para el futuro en SIM-02 y verde en SIM-04 (y en un escenario de SIM-02).
+> La app usa **naranjo** en todas las vistas para que el futuro tenga un solo color.
+
+---
+
+## Cuentas y nube (Supabase)
+
+Sin configurar nada, Zenith funciona igual que siempre: todo en el navegador. Con un proyecto de
+Supabase (pasos en [`supabase/README.md`](supabase/README.md)) se activan:
+
+- **Cuentas** (AUT-1 a AUT-3): registro con nombre, correo y contraseña; inicio de sesión con
+  «recordarme» y recuperación de contraseña; perfil con nombre, foto y descripción, y perfil público
+  en `/perfil/<id>` sin el correo. El botón **Salir** está en la cabecera de todas las pantallas.
+- **Mis juegos en la nube** (INV-8, TEC-08): en *Mi perfil*, cada juego tiene «copia en la nube».
+  Al guardar se sube solo; al entrar desde otro dispositivo se baja; los cambios de otro dispositivo
+  llegan en vivo. Si un juego cambió en los dos lados, la app pregunta qué versión conservar. Viajan
+  la plantilla, los objetos, el equipo y las habilidades elegidas; las imágenes propias todavía no.
+- **Base de datos** (TEC-02, TEC-03): `profiles`, `subscriptions`, `optimizers`, `votes`,
+  `favorites`, `reports` y `cloud_inventory`, con RLS en todas. Cada juego se guarda como un
+  documento `jsonb` (el mismo `.zenith.json` que se exporta), así el modelo puede seguir creciendo
+  sin migraciones. `npm run rls` prueba las reglas con distintos usuarios sobre PostgreSQL en memoria.
+
+El código está en `src/cloud/` (cliente, sesión, sincronización y su plan puro, que prueba
+`npm run sincronizacion`) y las pantallas en `src/views/AccountViews.tsx`.
 
 ---
 
