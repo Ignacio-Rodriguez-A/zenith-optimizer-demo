@@ -62,11 +62,52 @@ export const PORTADAS = [
   'sandbox', 'mmo', 'espacio', 'metroidvania',
 ]
 
-/** Elige una portada incluida a partir del id: la misma plantilla, siempre la misma. */
-export function portadaDe(id: string): string {
-  let h = 0
-  for (let i = 0; i < id.length; i++) h = (h * 33 + id.charCodeAt(i)) >>> 0
-  return `/portadas/${PORTADAS[h % PORTADAS.length]}.svg`
+const hashDe = (id: string): number => {
+  // FNV-1a con una mezcla final: un hash debil agrupa ids parecidos
+  // ("wow-paladin-sagrado" y "wow-paladin-proteccion") en la misma portada.
+  let h = 2166136261
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  h ^= h >>> 15
+  h = Math.imul(h, 2246822507)
+  h ^= h >>> 13
+  return h >>> 0
+}
+
+/**
+ * Elige una portada incluida a partir del id: la misma plantilla, siempre la
+ * misma. Hay dos proporciones del mismo motivo porque una tarjeta vertical y
+ * una cabecera apaisada recortan de forma muy distinta: servir solo una deja
+ * la otra vista como una tira del centro de la ilustracion.
+ */
+export function portadaDe(id: string, forma: 'alto' | 'ancho' = 'alto'): string {
+  const n = PORTADAS[hashDe(id) % PORTADAS.length]
+  return forma === 'ancho' ? `/portadas/ancho/${n}.svg` : `/portadas/${n}.svg`
+}
+
+/** La variante apaisada de una portada ya elegida. */
+export const enAncho = (ruta: string) =>
+  ruta.startsWith('/portadas/') ? ruta.replace('/portadas/', '/portadas/ancho/') : ruta
+
+/**
+ * Reparte portadas entre varias plantillas SIN repetir mientras alcancen.
+ * El hash solo garantiza estabilidad, no variedad: en una rejilla, dos juegos
+ * con la misma ilustracion se leen como un error.
+ */
+export function repartirPortadas(ids: string[]): Record<string, string> {
+  const libres = new Set(PORTADAS)
+  const out: Record<string, string> = {}
+  // Orden estable por hash: el reparto no depende de como llegue la lista.
+  for (const id of [...ids].sort((a, b) => hashDe(a) - hashDe(b))) {
+    if (libres.size === 0) PORTADAS.forEach((n) => libres.add(n))
+    const candidatas = [...libres]
+    const elegida = candidatas[hashDe(id) % candidatas.length]
+    libres.delete(elegida)
+    out[id] = `/portadas/${elegida}.svg`
+  }
+  return out
 }
 
 /** Degradado deterministico a partir del id: dos juegos distintos, colores distintos. */

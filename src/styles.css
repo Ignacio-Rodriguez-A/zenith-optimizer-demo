@@ -253,54 +253,8 @@ pre.code .f { color: var(--accent-2); }
 /* ------------------------------------------------------- catalogo de juegos */
 /* El banner lleva de fondo un mosaico con las propias portadas del usuario:
    si el catalogo esta vacio no se ve nada, y segun se llena, cobra vida sola. */
-.mkt-hero {
-  position: relative; overflow: hidden; border: 1px solid var(--line);
-  border-radius: var(--radius); margin-bottom: 18px; background: var(--panel);
-}
-.mkt-hero-art { position: absolute; inset: 0; display: flex; opacity: .32; }
-.mkt-hero-art .tile { flex: 1; min-width: 60px; background-size: cover; background-position: center; filter: saturate(.9); }
-.mkt-hero::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(125% 135% at 50% 0%, rgba(21,23,31,.35), rgba(21,23,31,.9) 78%);
-}
-.mkt-hero-in { position: relative; z-index: 1; padding: 40px 24px 30px; text-align: center; }
-.mkt-hero-in h2 { font-size: 28px; margin: 0 0 10px; font-weight: 700; letter-spacing: -.6px; }
-.mkt-hero-in p { color: var(--muted); max-width: 660px; margin: 0 auto; font-size: 14.5px; }
-.mkt-search {
-  display: flex; align-items: center; gap: 8px; max-width: 520px; margin: 20px auto 0;
-  background: rgba(8,10,15,.86); border: 1px solid var(--line-2); border-radius: 99px; padding: 4px 6px 4px 14px;
-}
-.mkt-search span { color: var(--dim); font-size: 16px; }
-.mkt-search input {
-  flex: 1; background: none; border: none; color: var(--text); font: inherit; font-size: 13.5px;
-  padding: 8px 0; outline: none; min-width: 0;
-}
-.mkt-search input::placeholder { color: var(--dim); }
 
-.mkt { display: grid; grid-template-columns: 216px minmax(0, 1fr); gap: 16px; align-items: start; }
-.mkt-side {
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 14px; position: sticky; top: 68px;
-}
-.mkt-side h3 {
-  font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; color: var(--dim);
-  margin: 0 0 9px; font-weight: 600;
-}
-.mkt-side button {
-  display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px;
-  background: none; border: none; color: var(--muted); cursor: pointer; text-align: left;
-  padding: 7px 10px; border-radius: 8px; font: inherit; font-size: 13px; margin-bottom: 2px;
-}
-.mkt-side button:hover { background: var(--panel-2); color: var(--text); }
-.mkt-side button.on { background: var(--panel-3); color: var(--text); font-weight: 600; }
-.mkt-side button:disabled { opacity: .45; cursor: wait; }
-.mkt-side button span { font-family: var(--mono); font-size: 11px; color: var(--dim); }
-.mkt-side-note { font-size: 11.5px; color: var(--dim); margin: -4px 0 8px; padding: 0 10px; line-height: 1.45; }
 
-@media (max-width: 860px) {
-  .mkt { grid-template-columns: 1fr; }
-  .mkt-side { position: static; }
-}
 
 /* ---------------------------------------------------------------- portadas */
 .cover { position: relative; overflow: hidden; border-radius: 10px 10px 0 0; flex: none; }
@@ -316,7 +270,6 @@ pre.code .f { color: var(--accent-2); }
   border-radius: 7px; padding: 4px 9px; font: inherit; font-size: 11px; cursor: pointer;
   opacity: 0; transition: opacity .13s;
 }
-.gamecard:hover .cover-edit, .cover-edit:focus { opacity: 1; }
 .cover-edit:hover { color: var(--text); border-color: var(--accent); }
 .cover-cat, .cover-cur {
   position: absolute; bottom: 8px; z-index: 2; font-size: 10.5px;
@@ -331,53 +284,12 @@ pre.code .f { color: var(--accent-2); }
    peso donde nada destaca. Ahora la tarjeta ES la portada (sin marco ni fondo,
    el texto suelto debajo) y la primera ocupa el doble de ancho, que es lo que
    jerarquiza la fila. */
-.gamegrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 30px 22px; align-items: start; }
-@media (max-width: 1180px) { .gamegrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 640px)  { .gamegrid { grid-template-columns: 1fr; } }
 
-.gamecard {
-  background: transparent; border: 0; border-radius: 0;
-  display: flex; flex-direction: column; cursor: pointer;
-}
-.gamecard .cover {
-  aspect-ratio: 16 / 10; border-radius: 18px;
-  transition: transform .18s ease, box-shadow .18s ease;
-}
-.gamecard:hover .cover { transform: translateY(-4px); box-shadow: 0 14px 34px rgba(0, 0, 0, .5); }
-.gamecard.on .cover { box-shadow: 0 0 0 2px var(--accent); }
 
 /* La destacada: doble ancho, con el texto AL LADO del arte y no debajo. Asi
    pesa mas que las demas sin crecer en alto y descuadrar la fila. */
-.gamecard.destacado {
-  grid-column: span 2;
-  display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; align-items: center;
-}
-.gamecard.destacado .cover { aspect-ratio: 4 / 3; }
-.gamecard.destacado .gbody { padding: 0; justify-content: center; }
-.gamecard.destacado .gt { font-size: 23px; letter-spacing: -.5px; margin-bottom: 8px; }
-.gamecard.destacado .gd { font-size: 14px; flex: none; }
-@media (max-width: 640px) {
-  .gamecard.destacado { grid-column: span 1; display: flex; }
-  .gamecard.destacado .cover { aspect-ratio: 16 / 10; }
-  .gamecard.destacado .gbody { padding: 14px 2px 0; }
-}
 
-.gamecard.nuevo {
-  border: 2px dashed var(--line-2); border-radius: 18px;
-  justify-content: center; align-items: center; text-align: center;
-  padding: 26px 18px; min-height: 230px;
-}
-.gamecard.nuevo:hover { border-color: var(--accent); }
 
-.gbody { padding: 14px 2px 0; display: flex; flex-direction: column; flex: 1; }
-.gamecard .gt { font-family: var(--display); font-size: 17.5px; font-weight: 700; letter-spacing: -.3px; margin-bottom: 6px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-.gamecard .gd { color: var(--muted); font-size: 13.5px; line-height: 1.55; margin-bottom: 14px; flex: 1; }
-.gamefacts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
-.gamefacts div { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 4px; text-align: center; }
-.gamefacts b { display: block; font-family: var(--mono); font-size: 14px; }
-.gamefacts small { font-size: 9.5px; color: var(--dim); }
-.thumbs { display: flex; gap: 5px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
-.thumbs-mas { font-size: 11px; color: var(--dim); font-family: var(--mono); }
 
 /* ------------------------------------------------------------------ modales */
 .modal-bg {
@@ -720,12 +632,6 @@ details.opt-more h3 { font-size: 13px; margin: 16px 0 8px; }
 .statgrid small.down { color: var(--danger); }
 
 /* ------------------------------------------------ portada: camino del jugador */
-.mkt-title { font-size: 15px; margin: 4px 0 12px; color: var(--text); text-transform: none; letter-spacing: 0; }
-.mkt-main > .mkt-title:not(:first-child) { margin-top: 22px; }
-.gamecard.ejemplo { cursor: pointer; }
-.gamecard.ejemplo:focus-visible .cover { box-shadow: 0 0 0 2px var(--accent); }
-details.mkt-about > summary { cursor: pointer; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-details.mkt-about[open] > summary { margin-bottom: 12px; }
 
 /* En movil los pasos sobran: la configuracion ya esta arriba con su boton. */
 @media (max-width: 980px) { .opt-empty { display: none; } }
@@ -919,3 +825,135 @@ textarea { resize: vertical; line-height: 1.5; }
 .cs-step.on { background: var(--accent); color: var(--accent-ink); }
 .cs-set-eff { margin: 0; font-size: 13px; line-height: 1.55; color: var(--accent-2); }
 .cs-set-eff.off { color: var(--dim); }
+
+
+/* ====================================================================
+   Catalogo
+   ====================================================================
+   Reescrito entero, no adaptado del anterior. El anterior era una ficha
+   de formulario con marco; este es una portada de tienda: el arte manda
+   y la interfaz se aparta. */
+
+/* -------------------------------------------------------------- heroe */
+.cat-hero {
+  position: relative; border-radius: 26px; overflow: hidden;
+  min-height: 380px; display: flex; align-items: flex-end;
+  margin-bottom: 44px;
+}
+.cat-hero-art {
+  position: absolute; inset: 0;
+  background-size: cover; background-position: center;
+}
+/* El velo arranca opaco a la izquierda, donde va el texto, y se abre a la
+   derecha para que el arte respire. Un velo plano mataria la ilustracion. */
+.cat-hero::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(95deg, var(--bg) 4%, rgba(21, 23, 31, .82) 42%, rgba(21, 23, 31, .15) 100%);
+}
+.cat-hero-in { position: relative; z-index: 1; padding: 48px 52px; max-width: 620px; }
+.cat-eyebrow {
+  margin: 0 0 14px; font-size: 12.5px; font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--accent);
+}
+.cat-hero-in h1 {
+  margin: 0 0 16px; font-family: var(--display); font-size: 46px; font-weight: 700;
+  line-height: 1.04; letter-spacing: -.03em;
+}
+.cat-lead { margin: 0 0 30px; font-size: 17px; line-height: 1.6; color: var(--muted); max-width: 46ch; }
+.cat-cta { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.cat-cta .primary {
+  height: 52px; padding: 0 28px; border-radius: 26px; font-size: 16px;
+  display: inline-flex; align-items: center; gap: 10px; width: auto;
+}
+.cat-meta-hero { font-size: 13.5px; color: var(--dim); font-family: var(--mono); }
+
+/* --------------------------------------------------------- barra ------ */
+.cat-bar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+.cat-bar h2 { margin: 0; font-family: var(--display); font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+.cat-count { font-family: var(--mono); font-size: 13px; color: var(--dim); }
+.cat-spacer { flex: 1; }
+.cat-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.cat-chip {
+  display: inline-flex; align-items: center; gap: 9px;
+  height: 40px; padding: 0 18px; border: 0; border-radius: 20px; cursor: pointer;
+  background: var(--panel); color: var(--muted);
+  font-family: var(--sans); font-size: 14px; font-weight: 500;
+}
+.cat-chip span {
+  font-family: var(--mono); font-size: 11.5px; padding: 2px 8px; border-radius: 9px;
+  background: var(--panel-3); color: var(--dim);
+}
+.cat-chip.on { background: var(--accent); color: var(--accent-ink); }
+.cat-chip.on span { background: rgba(42, 26, 6, .18); color: var(--accent-ink); }
+.cat-search {
+  display: flex; align-items: center; gap: 8px;
+  height: 40px; padding: 0 14px; border-radius: 20px; background: var(--panel);
+}
+.cat-search span { color: var(--dim); }
+.cat-search input {
+  border: 0; background: none; color: var(--text); font-family: var(--sans);
+  font-size: 14px; width: 140px; outline: none;
+}
+
+/* -------------------------------------------------------- rejilla ----- */
+.cat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 34px 22px; align-items: start; }
+@media (max-width: 1180px) { .cat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 860px)  { .cat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px)  { .cat-grid { grid-template-columns: 1fr; } }
+
+.cat-tile { display: flex; flex-direction: column; min-width: 0; }
+/* El arte ES el boton: toda la pieza se pulsa desde la ilustracion. */
+.cat-art {
+  position: relative; display: block; width: 100%; padding: 0; border: 0; cursor: pointer;
+  aspect-ratio: 3 / 4; border-radius: 18px; overflow: hidden; background: var(--panel);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.cat-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cat-tile:hover .cat-art { transform: translateY(-4px); box-shadow: 0 16px 38px rgba(0, 0, 0, .5); }
+.cat-tile.on .cat-art { box-shadow: 0 0 0 2px var(--accent); }
+
+.cat-badge {
+  position: absolute; top: 12px; left: 12px;
+  font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  padding: 5px 11px; border-radius: 20px;
+  background: rgba(10, 12, 16, .74); color: var(--text); backdrop-filter: blur(6px);
+}
+.cat-badge.uso { background: var(--accent); color: var(--accent-ink); }
+.cat-editar {
+  position: absolute; top: 12px; right: 12px;
+  font-size: 11px; padding: 5px 11px; border-radius: 20px;
+  background: rgba(10, 12, 16, .74); color: var(--muted);
+  opacity: 0; transition: opacity .15s;
+}
+.cat-tile:hover .cat-editar { opacity: 1; }
+.cat-editar:hover { color: var(--text); }
+
+.cat-name { margin: 14px 0 4px; font-family: var(--display); font-size: 17px; font-weight: 700; letter-spacing: -.02em; }
+.cat-meta { margin: 0 0 9px; font-family: var(--mono); font-size: 12px; color: var(--dim); }
+.cat-desc { margin: 0 0 14px; font-size: 13.5px; line-height: 1.55; color: var(--muted); flex: 1; }
+.cat-accion {
+  height: 42px; border: 0; border-radius: 21px; cursor: pointer;
+  background: var(--panel-3); color: var(--text);
+  font-family: var(--sans); font-size: 14px; font-weight: 600;
+}
+.cat-accion:hover { background: var(--accent); color: var(--accent-ink); }
+.cat-tile.on .cat-accion { background: var(--accent); color: var(--accent-ink); }
+
+/* La pieza de crear ocupa dos columnas: es una invitacion, no un hueco. */
+.cat-new {
+  grid-column: span 2; align-self: stretch;
+  display: flex; align-items: center; gap: 22px; text-align: left;
+  padding: 26px; border: 2px dashed var(--line-2); border-radius: 18px;
+  background: none; color: var(--text); cursor: pointer; font-family: var(--sans);
+}
+.cat-new:hover { border-color: var(--accent); border-style: solid; }
+.cat-new-ico {
+  flex: none; width: 58px; height: 58px; border-radius: 18px;
+  display: grid; place-items: center; font-size: 28px; line-height: 1;
+  background: var(--accent); color: var(--accent-ink);
+}
+.cat-new strong { display: block; font-family: var(--display); font-size: 19px; margin-bottom: 7px; }
+.cat-new span span, .cat-new > span { font-size: 13.5px; line-height: 1.6; color: var(--muted); }
+@media (max-width: 560px) { .cat-new { grid-column: span 1; } }
+
+.cat-vacio { grid-column: 1 / -1; color: var(--dim); font-size: 14px; }
