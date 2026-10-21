@@ -1,38 +1,50 @@
 /**
  * Catalogo de juegos
  * ==================
- * Es la portada del producto, y por eso se parece a una tienda: buscador,
- * categorias a la izquierda y una rejilla de caratulas. La forma no es
- * decorativa — comunica la tesis del proyecto. Un optimizador es una pagina;
- * un catalogo de optimizadores hechos por la comunidad es una plataforma, y
- * eso es exactamente lo que el motor permite ser.
+ * Es la portada del producto. La forma no es decorativa: comunica la tesis del
+ * proyecto. Un optimizador es una pagina; un catalogo de optimizadores hechos
+ * por la comunidad es una plataforma, y eso es lo que el motor permite ser.
  *
- * Las caratulas las pone el usuario (ver CoverPicker): no distribuimos arte de
+ * Decisiones de esta pantalla:
+ *
+ *  - Un heroe a sangre con el arte de fondo y el texto a la izquierda, no un
+ *    recuadro centrado con aire alrededor. El arte manda, la interfaz se calla.
+ *  - Una sola rejilla. Antes habia dos listas separadas ("tus juegos" y
+ *    "ejemplos") con cabeceras distintas; ahora es un catalogo con filtros, que
+ *    es como se navega una tienda.
+ *  - Cada pieza dice QUE PUEDES HACER con ese juego (optimizador, inventario,
+ *    personajes), no cuantas ranuras tiene. A nadie le importa el dato
+ *    estructural hasta que ya entro.
+ *  - Sin barra lateral: cuatro filtros en capsulas ocupan una linea y dejan el
+ *    ancho completo para las caratulas.
+ *
+ * Las caratulas: el usuario puede poner la suya, y si no hay, se usa una de las
+ * incluidas (ilustraciones propias, ver CoverPicker). No distribuimos arte de
  * juegos que no es nuestro, pero si damos el hueco donde colocarlo.
  */
 
 import { useMemo, useState } from 'react'
-import type { GameTemplate, Item } from '../core/types'
-import { artifactIcon } from '../adapters/genshinAssets'
-import { Icon } from '../ui/components'
-import { Cover, colorDe } from '../ui/CoverPicker'
+import type { GameTemplate } from '../core/types'
+import { enAncho, portadaDe, repartirPortadas } from '../ui/CoverPicker'
 import { nf } from '../ui/format'
 
 import type { ExampleInfo } from '../store/examples'
 
-const SIN_CAT = 'Sin categoria'
+type Filtro = 'todas' | 'mias' | 'ejemplos'
 
-/**
- * Primer icono disponible del conjunto. Se prueban todas las ranuras porque la
- * primera no tiene por que tener arte: en Genshin la ranura 1 es el arma, que
- * no pertenece a ningun conjunto de artefactos.
- */
-function iconoConjunto(gameId: string, setId: string, t: GameTemplate): string | null {
-  for (const sl of t.slots) {
-    const src = artifactIcon(gameId, setId, sl.id)
-    if (src) return src
-  }
-  return null
+/** Lo que la rejilla necesita saber de una pieza, venga de donde venga. */
+interface Tarjeta {
+  id: string
+  nombre: string
+  desc: string
+  art: string
+  propia: boolean
+  meta: string
+  etiqueta: string
+  enUso: boolean
+  accionTxt: string
+  accion: () => void
+  editarPortada?: () => void
 }
 
 export default function GamesView({
@@ -53,206 +65,143 @@ export default function GamesView({
   onAdd: () => void
   onEditCover: (id: string) => void
 }) {
-  const [cat, setCat] = useState<string>('')
-  const entradas = Object.entries(templates)
-  const vacio = entradas.length === 0
+  const [filtro, setFiltro] = useState<Filtro>('todas')
 
-  const categorias = useMemo(() => {
-    const m = new Map<string, number>()
-    for (const [, t] of entradas) {
-      const c = (t.category ?? '').trim() || SIN_CAT
-      m.set(c, (m.get(c) ?? 0) + 1)
-    }
-    return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-  }, [templates])
+  // Una portada distinta por plantilla: en una rejilla, dos iguales parecen un fallo.
+  const arte = useMemo(
+    () => repartirPortadas([...Object.keys(templates), ...examples.map((e) => e.id)]),
+    [templates, examples],
+  )
+
+  const mias: Tarjeta[] = useMemo(
+    () => Object.entries(templates).map(([id, t]) => ({
+      id,
+      nombre: t.name,
+      desc: t.description || 'Sin descripcion',
+      art: t.cover || arte[id] || portadaDe(id),
+      propia: true,
+      meta: `${nf.format(itemCounts[id] ?? 0)} objetos · ${t.slots.length} ranuras`,
+      etiqueta: id === current ? 'En uso' : '',
+      enUso: id === current,
+      accionTxt: id === current ? 'Continuar' : 'Optimizar',
+      accion: () => onPick(id),
+      editarPortada: () => onEditCover(id),
+    })),
+    [templates, itemCounts, current, arte, onPick, onEditCover],
+  )
+
+  const ejemplos: Tarjeta[] = useMemo(
+    () => examples.filter((e) => !userGameIds.has(e.id)).map((e) => ({
+      id: e.id,
+      nombre: e.name,
+      desc: e.description,
+      art: arte[e.id] || portadaDe(e.id),
+      propia: false,
+      meta: e.items > 0 ? `${nf.format(e.items)} objetos de muestra` : 'Sin objetos: carga los tuyos',
+      etiqueta: 'Ejemplo',
+      enUso: false,
+      accionTxt: loadingExample === e.id ? 'Cargando…' : 'Probar',
+      accion: () => onTryExample(e),
+    })),
+    [examples, userGameIds, arte, loadingExample, onTryExample],
+  )
+
+  const todas = useMemo(() => [...mias, ...ejemplos], [mias, ejemplos])
 
   const visibles = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return entradas.filter(([, t]) => {
-      const c = (t.category ?? '').trim() || SIN_CAT
-      if (cat && c !== cat) return false
-      if (q && !`${t.name} ${t.description} ${c}`.toLowerCase().includes(q)) return false
-      return true
-    })
-  }, [templates, cat, query])
+    return todas
+      .filter((c) => filtro === 'todas' || (filtro === 'mias' ? c.propia : !c.propia))
+      .filter((c) => !q || `${c.nombre} ${c.desc}`.toLowerCase().includes(q))
+  }, [todas, filtro, query])
 
-  /** Ejemplos que el usuario todavia no importo (los importados ya salen en "Tus juegos"). */
-  const ejemplosPendientes = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return examples
-      .filter((e) => !userGameIds.has(e.id))
-      .filter((e) => !q || `${e.name} ${e.description}`.toLowerCase().includes(q))
-  }, [examples, query, userGameIds])
+  // El heroe muestra el juego en uso; si no hay ninguno, el primer ejemplo.
+  const destacada = mias.find((c) => c.enUso) ?? mias[0] ?? ejemplos[0]
+
+  const filtros: { id: Filtro; label: string; n: number }[] = [
+    { id: 'todas', label: 'Todas', n: todas.length },
+    { id: 'mias', label: 'Mias', n: mias.length },
+    { id: 'ejemplos', label: 'Ejemplos', n: ejemplos.length },
+  ]
 
   return (
     <>
-      {/* --- banner ------------------------------------------------------ */}
-      <div className="mkt-hero">
-        <div className="mkt-hero-art" aria-hidden>
-          {entradas.slice(0, 8).map(([id, t]) => (
-            <div key={id} className="tile"
-              style={t.cover
-                ? { backgroundImage: `url(${t.cover})` }
-                : { background: `linear-gradient(135deg, ${t.accent || colorDe(id)}66, #0b0e15)` }} />
+      {destacada && (
+        <section className="cat-hero">
+          {/* La cabecera usa la variante apaisada: la vertical recortada a esta
+              altura se queda en una franja del centro. */}
+          <div className="cat-hero-art" style={{ backgroundImage: `url(${enAncho(destacada.art)})` }} aria-hidden />
+          <div className="cat-hero-in">
+            <p className="cat-eyebrow">{destacada.propia ? 'Donde lo dejaste' : 'Empieza por aqui'}</p>
+            <h1>{destacada.nombre}</h1>
+            <p className="cat-lead">{destacada.desc}</p>
+            <div className="cat-cta">
+              <button className="primary" onClick={destacada.accion}>
+                {destacada.accionTxt}
+                <span aria-hidden>&rarr;</span>
+              </button>
+              <span className="cat-meta-hero">{destacada.meta}</span>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <div className="cat-bar">
+        <h2>Plantillas</h2>
+        <span className="cat-count">{visibles.length} de {todas.length}</span>
+        <div className="cat-spacer" />
+        <div className="cat-chips" role="group" aria-label="Filtrar plantillas">
+          {filtros.map((f) => (
+            <button key={f.id} className={'cat-chip' + (filtro === f.id ? ' on' : '')}
+              aria-pressed={filtro === f.id} onClick={() => setFiltro(f.id)}>
+              {f.label}<span>{f.n}</span>
+            </button>
           ))}
         </div>
-        <div className="mkt-hero-in">
-          <h2>Encuentra la mejor build de tu personaje</h2>
-          <p>
-            Elige un juego, carga tus objetos y el optimizador prueba todas las combinaciones por ti.
-            Un mismo motor para cualquier juego.
-          </p>
-          <div className="mkt-search">
-            <span aria-hidden>⌕</span>
-            <input type="text" value={query} onChange={(e) => onQuery(e.target.value)}
-              placeholder="Buscar un juego (por ejemplo: Genshin, Terraria)…" />
-            {query && <button className="mini" onClick={() => onQuery('')}>limpiar</button>}
-          </div>
+        <div className="cat-search">
+          <span aria-hidden>⌕</span>
+          <input type="text" value={query} onChange={(e) => onQuery(e.target.value)}
+            placeholder="Buscar…" aria-label="Buscar una plantilla" />
+          {query && <button className="mini" onClick={() => onQuery('')}>limpiar</button>}
         </div>
       </div>
 
-      {/* --- catalogo ---------------------------------------------------- */}
-      <div className="mkt">
-        <aside className="mkt-side">
-          <h3>Explorar</h3>
-          <button className={cat === '' ? 'on' : ''} onClick={() => setCat('')}>
-            Todos los juegos <span>{entradas.length}</span>
-          </button>
-          {categorias.map(([c, n]) => (
-            <button key={c} className={cat === c ? 'on' : ''} onClick={() => setCat(cat === c ? '' : c)}>
-              {c} <span>{n}</span>
-            </button>
-          ))}
-
-          <h3 style={{ marginTop: 20 }}>Crear</h3>
-          <button onClick={onAdd}>+ Crear un juego</button>
-
-        </aside>
-
-        <div className="mkt-main">
-          {!vacio && <h2 className="mkt-title">Tus juegos</h2>}
-          {!vacio && visibles.length === 0 && (
-            <div className="card"><div className="empty">Ningún juego tuyo coincide con la búsqueda.</div></div>
-          )}
-
-          {!vacio && <div className="gamegrid">
-            {visibles.map(([id, t]) => {
-              const previewSets = t.sets.slice(0, 5)
-              return (
-                <div
-                  key={id}
-                  className={`gamecard${id === current ? ' on' : ''}`}
-                  onClick={() => onPick(id)}
-                  role="button" tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter') onPick(id) }}
-                >
-                  <Cover src={t.cover} name={t.name} accent={t.accent} id={id}>
-                    <button className="cover-edit" title="Cambiar la portada"
-                      onClick={(e) => { e.stopPropagation(); onEditCover(id) }}>
-                      imagen
-                    </button>
-                    {t.category && <span className="cover-cat">{t.category}</span>}
-                    {id === current && <span className="cover-cur">en uso</span>}
-                  </Cover>
-
-                  <div className="gbody">
-                    <div className="gt">{t.name}</div>
-                    <div className="gd">{t.description || <i style={{ color: 'var(--dim)' }}>sin descripcion</i>}</div>
-
-                    {previewSets.length > 0 && (
-                      <div className="thumbs">
-                        {previewSets.map((s) => (
-                          <Icon key={s.id} src={iconoConjunto(id, s.id, t)} alt={s.name} rarity={5} size={30} />
-                        ))}
-                        {t.sets.length > previewSets.length && (
-                          <span className="thumbs-mas">+{t.sets.length - previewSets.length}</span>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="gamefacts">
-                      <div><b>{t.slots.length}</b><small>ranuras</small></div>
-                      <div><b>{t.sets.length}</b><small>conjuntos</small></div>
-                      <div><b>{nf.format(itemCounts[id] ?? 0)}</b><small>objetos</small></div>
-                    </div>
-
-                    <button className="primary" onClick={(e) => { e.stopPropagation(); onPick(id) }}>
-                      {id === current ? 'Continuar' : 'Optimizar'}
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-
-          </div>}
-
-          {/* --- ejemplos listos para probar ---------------------------- */}
-          {ejemplosPendientes.length > 0 && (
-            <>
-              <h2 className="mkt-title">{vacio ? 'Empieza con un ejemplo' : 'Más juegos para probar'}</h2>
-              {vacio && (
-                <p className="hint" style={{ marginTop: -4 }}>
-                  Vienen con objetos de muestra: pulsa <b>Probar</b> y optimiza en un clic. Después puedes cargar los tuyos.
-                </p>
+      <div className="cat-grid">
+        {visibles.map((c) => (
+          <article key={c.id} className={'cat-tile' + (c.enUso ? ' on' : '')}>
+            <button className="cat-art" onClick={c.accion} aria-label={`Abrir ${c.nombre}`}>
+              <img src={c.art} alt="" loading="lazy" />
+              {c.etiqueta && <span className={'cat-badge' + (c.enUso ? ' uso' : '')}>{c.etiqueta}</span>}
+              {c.editarPortada && (
+                <span className="cat-editar" role="presentation"
+                  onClick={(e) => { e.stopPropagation(); c.editarPortada?.() }}>
+                  imagen
+                </span>
               )}
-              <div className="gamegrid">
-                {ejemplosPendientes.map((ex) => (
-                  <div key={ex.id} className="gamecard ejemplo" role="button" tabIndex={0}
-                    onClick={() => onTryExample(ex)} onKeyDown={(e) => { if (e.key === 'Enter') onTryExample(ex) }}>
-                    <Cover name={ex.name} id={ex.id} height={96} />
-                    <div className="gbody">
-                      <div className="gt">{ex.name}</div>
-                      <div className="gd">{ex.description}</div>
-                      <div className="gd" style={{ color: 'var(--accent-2)' }}>
-                        {ex.items > 0 ? `${nf.format(ex.items)} objetos incluidos` : 'Sin objetos: carga los tuyos'}
-                      </div>
-                      <button className="primary" disabled={loadingExample === ex.id}
-                        onClick={(e) => { e.stopPropagation(); onTryExample(ex) }}>
-                        {loadingExample === ex.id ? 'Cargando…' : 'Probar'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                <div className="gamecard nuevo" onClick={onAdd} role="button" tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter') onAdd() }}>
-                  <div style={{ fontSize: 38, color: 'var(--dim)', lineHeight: 1 }}>+</div>
-                  <div className="gt" style={{ marginTop: 10 }}>Crear tu propio juego</div>
-                  <div className="gd" style={{ maxWidth: 260, textAlign: 'center' }}>
-                    Desde una tabla de objetos o paso a paso con formularios. Sin escribir código.
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
+            </button>
+            <h3 className="cat-name">{c.nombre}</h3>
+            <p className="cat-meta">{c.meta}</p>
+            <p className="cat-desc">{c.desc}</p>
+            <button className="cat-accion" onClick={c.accion}>{c.accionTxt}</button>
+          </article>
+        ))}
 
-          <details className="card mkt-about" style={{ marginTop: 16 }}>
-            <summary>Sobre el proyecto</summary>
-            <div className="twocol">
-              <div>
-                <h3>El motor no sabe de juegos</h3>
-                <p style={{ color: 'var(--muted)', fontSize: 13 }}>
-                  No hay un <code>if (juego === 'genshin')</code> en ninguna parte del optimizador.
-                  Recibe una lista de objetos, un conjunto de formulas y devuelve la mejor
-                  combinacion. Un juego tiene 6 ranuras y conjuntos de 2 y 4 piezas; otro tiene
-                  7 ranuras y conjuntos de 3. Al motor le da exactamente igual.
-                </p>
-              </div>
-              <div>
-                <h3>Anadir un juego no deberia requerir un programador</h3>
-                <p style={{ color: 'var(--muted)', fontSize: 13 }}>
-                  Esa es la apuesta del proyecto: que una plantilla JSON baste para modelar un
-                  juego, y que la comunidad pueda escribirla, publicarla y bifurcarla sin tocar
-                  codigo ni esperar a que alguien despliegue una version nueva. La portada y la
-                  categoria viajan dentro de la plantilla, asi que un juego compartido llega con
-                  su cara puesta.
-                </p>
-              </div>
-            </div>
-          </details>
-        </div>
+        <button className="cat-new" onClick={onAdd}>
+          <span className="cat-new-ico" aria-hidden>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2.6" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+          </span>
+          <span>
+            <strong>Tu juego no esta aqui</strong>
+            Arma su plantilla: que numeros tiene, que se equipa y como se calcula.
+            Sin escribir codigo, y queda para quien la necesite.
+          </span>
+        </button>
+
+        {visibles.length === 0 && (
+          <p className="cat-vacio">Ninguna plantilla coincide con lo que buscas.</p>
+        )}
       </div>
     </>
   )
 }
-
-export function countItems(items: Item[]): number { return items.length }

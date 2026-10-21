@@ -48,8 +48,67 @@ export function shrinkCover(file: File): Promise<string> {
 }
 
 export const COLORES = [
-  '#7c8cff', '#5cc8a8', '#d8a860', '#e06c75', '#b07cff', '#4aa3df', '#e0895a', '#6fbf5a',
+  '#F0B254', '#6FD6B4', '#F08A7A', '#9FB4E8', '#C9A24C', '#5BC8E8', '#E8713C', '#7FD6E8',
 ]
+
+/**
+ * Portadas incluidas. Son ilustraciones propias en SVG, abstractas por genero:
+ * no reproducen arte de ningun juego, asi que se pueden distribuir sin problema.
+ * Sirven para que una plantilla recien creada no se vea rota mientras su autor
+ * no suba una imagen propia.
+ */
+export const PORTADAS = [
+  'rpg-clasico', 'souls', 'shooter', 'mundo-abierto',
+  'sandbox', 'mmo', 'espacio', 'metroidvania',
+]
+
+const hashDe = (id: string): number => {
+  // FNV-1a con una mezcla final: un hash debil agrupa ids parecidos
+  // ("wow-paladin-sagrado" y "wow-paladin-proteccion") en la misma portada.
+  let h = 2166136261
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  h ^= h >>> 15
+  h = Math.imul(h, 2246822507)
+  h ^= h >>> 13
+  return h >>> 0
+}
+
+/**
+ * Elige una portada incluida a partir del id: la misma plantilla, siempre la
+ * misma. Hay dos proporciones del mismo motivo porque una tarjeta vertical y
+ * una cabecera apaisada recortan de forma muy distinta: servir solo una deja
+ * la otra vista como una tira del centro de la ilustracion.
+ */
+export function portadaDe(id: string, forma: 'alto' | 'ancho' = 'alto'): string {
+  const n = PORTADAS[hashDe(id) % PORTADAS.length]
+  return forma === 'ancho' ? `/portadas/ancho/${n}.svg` : `/portadas/${n}.svg`
+}
+
+/** La variante apaisada de una portada ya elegida. */
+export const enAncho = (ruta: string) =>
+  ruta.startsWith('/portadas/') ? ruta.replace('/portadas/', '/portadas/ancho/') : ruta
+
+/**
+ * Reparte portadas entre varias plantillas SIN repetir mientras alcancen.
+ * El hash solo garantiza estabilidad, no variedad: en una rejilla, dos juegos
+ * con la misma ilustracion se leen como un error.
+ */
+export function repartirPortadas(ids: string[]): Record<string, string> {
+  const libres = new Set(PORTADAS)
+  const out: Record<string, string> = {}
+  // Orden estable por hash: el reparto no depende de como llegue la lista.
+  for (const id of [...ids].sort((a, b) => hashDe(a) - hashDe(b))) {
+    if (libres.size === 0) PORTADAS.forEach((n) => libres.add(n))
+    const candidatas = [...libres]
+    const elegida = candidatas[hashDe(id) % candidatas.length]
+    libres.delete(elegida)
+    out[id] = `/portadas/${elegida}.svg`
+  }
+  return out
+}
 
 /** Degradado deterministico a partir del id: dos juegos distintos, colores distintos. */
 export function colorDe(id: string): string {
@@ -63,19 +122,27 @@ export function colorDe(id: string): string {
  * iniciales: una tarjeta sin portada tiene que seguir siendo reconocible.
  */
 export function Cover(
-  { src, name, accent, id, height = 132, children }:
+  { src, name, accent, id, height, children }:
   { src?: string; name: string; accent?: string; id: string; height?: number; children?: React.ReactNode },
 ) {
   const [roto, setRoto] = useState(false)
   useEffect(() => setRoto(false), [src])
   const c = accent || colorDe(id)
+  // Sin portada propia cae a una de las incluidas; las iniciales quedan como
+  // ultimo recurso, solo si tampoco carga esa.
+  const arte = src || portadaDe(id)
   // Solo palabras que empiecen por letra: "Souls (simplificado)" da "S", no "S(".
   const iniciales = (name.match(/[A-Za-zÁÉÍÓÚÑáéíóúñ][\w]*/g) ?? [])
     .map((w) => w[0]).slice(0, 3).join('').toUpperCase() || '?'
   return (
-    <div className="cover" style={{ height, background: `linear-gradient(135deg, ${c}44, ${c}14 55%, #0b0e15)` }}>
-      {src && !roto
-        ? <img src={src} alt={name} loading="lazy" onError={() => setRoto(true)} />
+    <div
+      className="cover"
+      // Sin height explicito manda el CSS (aspect-ratio): asi la tarjeta puede
+      // cambiar de proporcion sin tocar el componente.
+      style={{ ...(height ? { height } : null), background: `linear-gradient(135deg, ${c}33, ${c}0f 55%, var(--bg))` }}
+    >
+      {arte && !roto
+        ? <img src={arte} alt="" loading="lazy" onError={() => setRoto(true)} />
         : <span className="cover-ini" style={{ color: c }}>{iniciales}</span>}
       <div className="cover-fade" />
       {children}
