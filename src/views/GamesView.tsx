@@ -199,10 +199,13 @@ export default function GamesView({
                 </p>
               )}
               <div className="gamegrid">
-                {ejemplosPendientes.map((ex) => (
-                  <div key={ex.id} className="gamecard ejemplo" role="button" tabIndex={0}
+                {ejemplosPendientes.map((ex, i) => (
+                  // La primera ocupa el doble: una cuadricula de piezas iguales no
+                  // jerarquiza nada, y la portada es lo que distingue a un juego.
+                  <div key={ex.id} className={'gamecard ejemplo' + (i === 0 ? ' destacado' : '')}
+                    role="button" tabIndex={0}
                     onClick={() => onTryExample(ex)} onKeyDown={(e) => { if (e.key === 'Enter') onTryExample(ex) }}>
-                    <Cover name={ex.name} id={ex.id} height={96} />
+                    <Cover name={ex.name} id={ex.id} />
                     <div className="gbody">
                       <div className="gt">{ex.name}</div>
                       <div className="gd">{ex.description}</div>

@@ -81,7 +81,7 @@ export function colorDe(id: string): string {
  * iniciales: una tarjeta sin portada tiene que seguir siendo reconocible.
  */
 export function Cover(
-  { src, name, accent, id, height = 132, children }:
+  { src, name, accent, id, height, children }:
   { src?: string; name: string; accent?: string; id: string; height?: number; children?: React.ReactNode },
 ) {
   const [roto, setRoto] = useState(false)
@@ -94,7 +94,12 @@ export function Cover(
   const iniciales = (name.match(/[A-Za-zÁÉÍÓÚÑáéíóúñ][\w]*/g) ?? [])
     .map((w) => w[0]).slice(0, 3).join('').toUpperCase() || '?'
   return (
-    <div className="cover" style={{ height, background: `linear-gradient(135deg, ${c}33, ${c}0f 55%, var(--bg))` }}>
+    <div
+      className="cover"
+      // Sin height explicito manda el CSS (aspect-ratio): asi la tarjeta puede
+      // cambiar de proporcion sin tocar el componente.
+      style={{ ...(height ? { height } : null), background: `linear-gradient(135deg, ${c}33, ${c}0f 55%, var(--bg))` }}
+    >
       {arte && !roto
         ? <img src={arte} alt="" loading="lazy" onError={() => setRoto(true)} />
         : <span className="cover-ini" style={{ color: c }}>{iniciales}</span>}

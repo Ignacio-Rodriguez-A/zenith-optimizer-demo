@@ -325,21 +325,53 @@ pre.code .f { color: var(--accent-2); }
 .cover-cat { left: 8px; color: var(--muted); }
 .cover-cur { right: 8px; color: var(--accent-2); border-color: var(--accent-2); }
 
-.gamegrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(258px, 1fr)); gap: 15px; }
+/* Tarjetas de juego
+   -----------------
+   Antes eran cajas iguales con marco: una cuadricula de cuatro piezas del mismo
+   peso donde nada destaca. Ahora la tarjeta ES la portada (sin marco ni fondo,
+   el texto suelto debajo) y la primera ocupa el doble de ancho, que es lo que
+   jerarquiza la fila. */
+.gamegrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 30px 22px; align-items: start; }
+@media (max-width: 1180px) { .gamegrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px)  { .gamegrid { grid-template-columns: 1fr; } }
+
 .gamecard {
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
-  display: flex; flex-direction: column; cursor: pointer; overflow: hidden;
-  transition: border-color .14s, transform .14s;
+  background: transparent; border: 0; border-radius: 0;
+  display: flex; flex-direction: column; cursor: pointer;
 }
-.gamecard:hover { border-color: var(--accent); transform: translateY(-2px); }
-.gamecard.on { border-color: var(--accent); }
+.gamecard .cover {
+  aspect-ratio: 16 / 10; border-radius: 18px;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.gamecard:hover .cover { transform: translateY(-4px); box-shadow: 0 14px 34px rgba(0, 0, 0, .5); }
+.gamecard.on .cover { box-shadow: 0 0 0 2px var(--accent); }
+
+/* La destacada: doble ancho, con el texto AL LADO del arte y no debajo. Asi
+   pesa mas que las demas sin crecer en alto y descuadrar la fila. */
+.gamecard.destacado {
+  grid-column: span 2;
+  display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; align-items: center;
+}
+.gamecard.destacado .cover { aspect-ratio: 4 / 3; }
+.gamecard.destacado .gbody { padding: 0; justify-content: center; }
+.gamecard.destacado .gt { font-size: 23px; letter-spacing: -.5px; margin-bottom: 8px; }
+.gamecard.destacado .gd { font-size: 14px; flex: none; }
+@media (max-width: 640px) {
+  .gamecard.destacado { grid-column: span 1; display: flex; }
+  .gamecard.destacado .cover { aspect-ratio: 16 / 10; }
+  .gamecard.destacado .gbody { padding: 14px 2px 0; }
+}
+
 .gamecard.nuevo {
-  border-style: dashed; justify-content: center; align-items: center; text-align: center;
-  padding: 26px 18px; min-height: 260px;
+  border: 2px dashed var(--line-2); border-radius: 18px;
+  justify-content: center; align-items: center; text-align: center;
+  padding: 26px 18px; min-height: 230px;
 }
-.gbody { padding: 13px 14px 14px; display: flex; flex-direction: column; flex: 1; }
-.gamecard .gt { font-size: 16.5px; font-weight: 660; margin-bottom: 5px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-.gamecard .gd { color: var(--muted); font-size: 12.5px; margin-bottom: 12px; flex: 1; }
+.gamecard.nuevo:hover { border-color: var(--accent); }
+
+.gbody { padding: 14px 2px 0; display: flex; flex-direction: column; flex: 1; }
+.gamecard .gt { font-family: var(--display); font-size: 17.5px; font-weight: 700; letter-spacing: -.3px; margin-bottom: 6px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.gamecard .gd { color: var(--muted); font-size: 13.5px; line-height: 1.55; margin-bottom: 14px; flex: 1; }
 .gamefacts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
 .gamefacts div { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 4px; text-align: center; }
 .gamefacts b { display: block; font-family: var(--mono); font-size: 14px; }
@@ -691,7 +723,7 @@ details.opt-more h3 { font-size: 13px; margin: 16px 0 8px; }
 .mkt-title { font-size: 15px; margin: 4px 0 12px; color: var(--text); text-transform: none; letter-spacing: 0; }
 .mkt-main > .mkt-title:not(:first-child) { margin-top: 22px; }
 .gamecard.ejemplo { cursor: pointer; }
-.gamecard.ejemplo:hover { border-color: var(--accent); }
+.gamecard.ejemplo:focus-visible .cover { box-shadow: 0 0 0 2px var(--accent); }
 details.mkt-about > summary { cursor: pointer; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 details.mkt-about[open] > summary { margin-bottom: 12px; }
 
