@@ -48,8 +48,26 @@ export function shrinkCover(file: File): Promise<string> {
 }
 
 export const COLORES = [
-  '#7c8cff', '#5cc8a8', '#d8a860', '#e06c75', '#b07cff', '#4aa3df', '#e0895a', '#6fbf5a',
+  '#F0B254', '#6FD6B4', '#F08A7A', '#9FB4E8', '#C9A24C', '#5BC8E8', '#E8713C', '#7FD6E8',
 ]
+
+/**
+ * Portadas incluidas. Son ilustraciones propias en SVG, abstractas por genero:
+ * no reproducen arte de ningun juego, asi que se pueden distribuir sin problema.
+ * Sirven para que una plantilla recien creada no se vea rota mientras su autor
+ * no suba una imagen propia.
+ */
+export const PORTADAS = [
+  'rpg-clasico', 'souls', 'shooter', 'mundo-abierto',
+  'sandbox', 'mmo', 'espacio', 'metroidvania',
+]
+
+/** Elige una portada incluida a partir del id: la misma plantilla, siempre la misma. */
+export function portadaDe(id: string): string {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 33 + id.charCodeAt(i)) >>> 0
+  return `/portadas/${PORTADAS[h % PORTADAS.length]}.svg`
+}
 
 /** Degradado deterministico a partir del id: dos juegos distintos, colores distintos. */
 export function colorDe(id: string): string {
@@ -69,13 +87,16 @@ export function Cover(
   const [roto, setRoto] = useState(false)
   useEffect(() => setRoto(false), [src])
   const c = accent || colorDe(id)
+  // Sin portada propia cae a una de las incluidas; las iniciales quedan como
+  // ultimo recurso, solo si tampoco carga esa.
+  const arte = src || portadaDe(id)
   // Solo palabras que empiecen por letra: "Souls (simplificado)" da "S", no "S(".
   const iniciales = (name.match(/[A-Za-zÁÉÍÓÚÑáéíóúñ][\w]*/g) ?? [])
     .map((w) => w[0]).slice(0, 3).join('').toUpperCase() || '?'
   return (
-    <div className="cover" style={{ height, background: `linear-gradient(135deg, ${c}44, ${c}14 55%, #0b0e15)` }}>
-      {src && !roto
-        ? <img src={src} alt={name} loading="lazy" onError={() => setRoto(true)} />
+    <div className="cover" style={{ height, background: `linear-gradient(135deg, ${c}33, ${c}0f 55%, var(--bg))` }}>
+      {arte && !roto
+        ? <img src={arte} alt="" loading="lazy" onError={() => setRoto(true)} />
         : <span className="cover-ini" style={{ color: c }}>{iniciales}</span>}
       <div className="cover-fade" />
       {children}

@@ -395,10 +395,35 @@ function Estadisticas({ template, profile, a, b }: {
       ))}
       {a.conjuntos.length > 0 && (
         <section className="cs-group">
-          <h3>Conjuntos activos</h3>
-          {a.conjuntos.map((c) => (
-            <div className="cs-row" key={c.name}><span className="cs-row-name">{c.name} ({c.pieces})</span><span className="cs-row-val">{c.tiers.join(', ')}</span></div>
-          ))}
+          <h3>Conjuntos</h3>
+          {a.conjuntos.map((c) => {
+            // La escalera completa del conjunto, no solo los escalones encendidos:
+            // ver "2pz | 4pz" con el activo en ambar dice de un vistazo cuanto falta.
+            const def = template.sets.find((x) => x.name === c.name)
+            const escalones = (def?.tiers ?? []).map((t) => t.pieces).sort((x, y) => x - y)
+            const siguiente = escalones.find((n) => n > c.pieces)
+            return (
+              <div className="cs-set" key={c.name}>
+                <div className="cs-set-head">
+                  <span className="cs-set-name">{c.name}</span>
+                  <span className="cs-ladder">
+                    {escalones.map((n) => (
+                      <span key={n} className={'cs-step' + (c.pieces >= n ? ' on' : '')}>{n}pz</span>
+                    ))}
+                  </span>
+                </div>
+                {c.tiers.length > 0 ? (
+                  <p className="cs-set-eff">{c.tiers.join(' · ')}</p>
+                ) : (
+                  <p className="cs-set-eff off">
+                    {siguiente
+                      ? `Llevas ${c.pieces}. Te ${siguiente - c.pieces === 1 ? 'falta 1 pieza' : `faltan ${siguiente - c.pieces} piezas`} para el primer bono.`
+                      : `Llevas ${c.pieces} piezas.`}
+                  </p>
+                )}
+              </div>
+            )
+          })}
         </section>
       )}
     </div>

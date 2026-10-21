@@ -7,7 +7,8 @@
  * un catalogo de optimizadores hechos por la comunidad es una plataforma, y
  * eso es exactamente lo que el motor permite ser.
  *
- * Las caratulas las pone el usuario (ver CoverPicker): no distribuimos arte de
+ * Las caratulas: el usuario puede poner la suya, y si no hay, se usa una de las
+ * incluidas (ilustraciones propias, ver CoverPicker). No distribuimos arte de
  * juegos que no es nuestro, pero si damos el hueco donde colocarlo.
  */
 
@@ -15,7 +16,7 @@ import { useMemo, useState } from 'react'
 import type { GameTemplate, Item } from '../core/types'
 import { artifactIcon } from '../adapters/genshinAssets'
 import { Icon } from '../ui/components'
-import { Cover, colorDe } from '../ui/CoverPicker'
+import { Cover, portadaDe } from '../ui/CoverPicker'
 import { nf } from '../ui/format'
 
 import type { ExampleInfo } from '../store/examples'
@@ -89,11 +90,13 @@ export default function GamesView({
       {/* --- banner ------------------------------------------------------ */}
       <div className="mkt-hero">
         <div className="mkt-hero-art" aria-hidden>
-          {entradas.slice(0, 8).map(([id, t]) => (
-            <div key={id} className="tile"
-              style={t.cover
-                ? { backgroundImage: `url(${t.cover})` }
-                : { background: `linear-gradient(135deg, ${t.accent || colorDe(id)}66, #0b0e15)` }} />
+          {/* El arte sale de tus juegos; quien entra por primera vez no tiene
+              ninguno, asi que caemos a los ejemplos y el banner nunca va vacio. */}
+          {(entradas.length > 0
+            ? entradas.slice(0, 8).map(([id, t]) => [id, t.cover || portadaDe(id)] as const)
+            : examples.slice(0, 8).map((e) => [e.id, portadaDe(e.id)] as const)
+          ).map(([id, art]) => (
+            <div key={id} className="tile" style={{ backgroundImage: `url(${art})` }} />
           ))}
         </div>
         <div className="mkt-hero-in">
